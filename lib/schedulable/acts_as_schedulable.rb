@@ -9,13 +9,9 @@ module Schedulable
    
     module ClassMethods
       
-      def occurrences_association 
-        @@occurrences_association 
-      end
-
       def acts_as_schedulable(name, options = {})
         
-        name ||= :schedule
+        name ||= :schedules
         attribute = :date
         
         has_many name, as: :schedulable, dependent: :destroy, class_name: 'Schedule'
@@ -36,60 +32,56 @@ module Schedulable
           options[:occurrences][:dependent]||:destroy
           options[:occurrences][:autosave]||= true
           
-          has_many occurrences_association, options[:occurrences]
-          module OccurrencesAssociationBase
-            extend ActiveSupport::Concern
-
-            included do
-              has_many occurrences_association, options[:occurrences]
-
-              # remaining
-              remaining_occurrences_options = options[:occurrences].clone
-              remaining_occurrences_association = "remaining_#{occurrences_association}".to_sym
-              has_many remaining_occurrences_association, -> { where("#{occurrences_table_name}.date >= ?", Time.current).order('date ASC') }, remaining_occurrences_options
-              
-              # previous
-              previous_occurrences_options = options[:occurrences].clone
-              previous_occurrences_association = "previous_#{occurrences_association}".to_sym
-              has_many previous_occurrences_association, -> { where("#{occurrences_table_name}.date < ?", Time.current).order('date DESC')}, previous_occurrences_options
- 
-              # build occurrences for events if we're persisting occurrences.
-              def build_occurrences
-                min_date = [schedule.date, Time.current].max
-                
-                # TODO: Make configurable 
-                occurrence_attribute = :date 
-                
-                schedulable = schedule.schedulable
-                terminating = schedule.rule != 'singular' && (schedule.until.present? || schedule.count.present? && schedule.count > 1)
-                
-                max_period = Schedulable.config.max_build_period || 1.year
-                max_date = min_date + max_period
-                
-                max_date = terminating ? [max_date, (schedule.last.to_time rescue nil)].compact.min : max_date
-                
-                max_count = Schedulable.config.max_build_count || 100
-                max_count = terminating && schedule.remaining_occurrences.any? ? [max_count, schedule.remaining_occurrences.count].min : max_count
-
-                # Get schedule occurrence dates
-                times = schedule.occurrences_between(min_date.to_time, max_date.to_time)
-                times = times.first(max_count) if max_count > 0
-
-                # build occurrences
-                occurrences = schedulable.send(occurrences_association)
-                times.each do |time|
-                  occurrences.find_by_date(time) || occurrences.create(date: time)
-                end
-
-                # Clean up unused remaining occurrences 
-                self.send("remaining_#{occurrences_association}").where.not(date: times).destroy_all
-              end
-            end
-          end
-          Schedule.send :include, OccurrencesAssociationBase
-          
           # table_name
           occurrences_table_name = occurrences_association.to_s.tableize
+          
+          has_many occurrences_association, options[:occurrences]
+
+          Schedule.class_eval do
+            has_many occurrences_association, options[:occurrences]
+
+            # remaining
+            remaining_occurrences_options = options[:occurrences].clone
+            remaining_occurrences_association = "remaining_#{occurrences_association}".to_sym
+            has_many remaining_occurrences_association, -> { where("#{occurrences_table_name}.date >= ?", Time.current).order('date ASC') }, remaining_occurrences_options
+            
+            # previous
+            previous_occurrences_options = options[:occurrences].clone
+            previous_occurrences_association = "previous_#{occurrences_association}".to_sym
+            has_many previous_occurrences_association, -> { where("#{occurrences_table_name}.date < ?", Time.current).order('date DESC')}, previous_occurrences_options
+
+            # build occurrences for events if we're persisting occurrences.
+            def build_occurrences
+              min_date = [schedule.date, Time.current].max
+              
+              # TODO: Make configurable 
+              occurrence_attribute = :date 
+              
+              schedulable = schedule.schedulable
+              terminating = schedule.rule != 'singular' && (schedule.until.present? || schedule.count.present? && schedule.count > 1)
+              
+              max_period = Schedulable.config.max_build_period || 1.year
+              max_date = min_date + max_period
+              
+              max_date = terminating ? [max_date, (schedule.last.to_time rescue nil)].compact.min : max_date
+              
+              max_count = Schedulable.config.max_build_count || 100
+              max_count = terminating && schedule.remaining_occurrences.any? ? [max_count, schedule.remaining_occurrences.count].min : max_count
+
+              # Get schedule occurrence dates
+              times = schedule.occurrences_between(min_date.to_time, max_date.to_time)
+              times = times.first(max_count) if max_count > 0
+
+              # build occurrences
+              occurrences = schedulable.send(occurrences_association)
+              times.each do |time|
+                occurrences.find_by_date(time) || occurrences.create(date: time)
+              end
+
+              # Clean up unused remaining occurrences 
+              self.send("remaining_#{occurrences_association}").where.not(date: times).destroy_all
+            end
+          end
           
           # remaining
           remaining_occurrences_options = options[:occurrences].clone
