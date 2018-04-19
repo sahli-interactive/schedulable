@@ -1,14 +1,16 @@
 module Schedulable
   module Model
-    class Schedule  < ActiveRecord::Base
+    class Schedule < ActiveRecord::Base
 
       serialize :day
       serialize :day_of_week, Hash
 
       belongs_to :schedulable, polymorphic: true
+      # 'has_many occurrences_association' defined in acts_as_schedulable
 
       after_initialize :update_schedule
       before_save :update_schedule
+      after_save :build_occurrences, if: ->(s) {s.changes.any?}
 
       validates_presence_of :rule
       validates_presence_of :time
@@ -50,7 +52,7 @@ module Schedulable
         [:id, :date, :time, :rule, :until, :count, :interval, day: [], day_of_week: [monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []]]
       end
 
-      def update_schedule()
+      def update_schedule
 
         self.rule||= "singular"
         self.interval||= 1
@@ -122,6 +124,7 @@ module Schedulable
           errors.add(:day_of_week, :empty)
         end
       end
+
     end
   end
 end

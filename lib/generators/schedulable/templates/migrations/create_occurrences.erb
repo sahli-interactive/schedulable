@@ -5,6 +5,7 @@ class Create<%= name.classify.pluralize %> < ActiveRecord::Migration
       t.<%= attribute.type %> :<%= attribute.name %>
 <% end %>
       t.references :schedulable, polymorphic: true
+      t.references :schedule
       t.datetime :date
 
       t.timestamps
