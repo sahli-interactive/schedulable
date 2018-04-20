@@ -38,17 +38,17 @@ module Schedulable
           has_many occurrences_association, options[:occurrences]
 
           Schedule.class_eval do
-            has_many occurrences_association, options[:occurrences]
+            has_many occurrences_association, options[:occurrences].slice(:class_name, :dependent, :autosave)
 
             # remaining
             remaining_occurrences_options = options[:occurrences].clone
             remaining_occurrences_association = "remaining_#{occurrences_association}".to_sym
-            has_many remaining_occurrences_association, -> { where("#{occurrences_table_name}.date >= ?", Time.current).order('date ASC') }, remaining_occurrences_options
+            has_many remaining_occurrences_association, ->(s) { s.send(occurrences_association).where("#{occurrences_table_name}.date >= ?", Time.current).order('date ASC') }, remaining_occurrences_options
             
             # previous
             previous_occurrences_options = options[:occurrences].clone
             previous_occurrences_association = "previous_#{occurrences_association}".to_sym
-            has_many previous_occurrences_association, -> { where("#{occurrences_table_name}.date < ?", Time.current).order('date DESC')}, previous_occurrences_options
+            has_many previous_occurrences_association, ->(s) { s.send(occurrences_association).where("#{occurrences_table_name}.date < ?", Time.current).order('date DESC')}, previous_occurrences_options
 
             # build occurrences for events if we're persisting occurrences.
             def build_occurrences
