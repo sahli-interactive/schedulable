@@ -1,6 +1,6 @@
 module Schedulable
 
-  module PersistSchedule
+  module ActsAsSchedule
     extend ActiveSupport::Concern
    
     included do
@@ -132,16 +132,14 @@ module Schedulable
    
     module ClassMethods
       
-      def persist_schedule(name, options = {})
-        occurrences_table_name = name.to_s.tableize
-
+      def acts_as_schedule(name, options = {})
         has_many name, options do
           def remaining
-            where("#{occurrences_table_name}.date >= ?", Time.current).order('date ASC')
+            where("date >= ?", Time.current).order('date ASC')
           end
 
           def previous
-            where("#{occurrences_table_name}.date < ?", Time.current).order('date DESC')
+            where("date < ?", Time.current).order('date DESC')
           end
         end
 
@@ -149,22 +147,20 @@ module Schedulable
         def build_occurrences
           min_date = [schedule.date, Time.current].max
           
-          # TODO: Make configurable 
           occurrence_attribute = :date 
           
-          schedulable = schedule.schedulable
-          terminating = schedule.rule != 'singular' && (schedule.until.present? || schedule.count.present? && schedule.count > 1)
+          terminating = schedule.rule != 'singular' && (@schedule.until.present? || @schedule.count.to_i > 1)
           
           max_period = Schedulable.config.max_build_period || 1.year
           max_date = min_date + max_period
           
-          max_date = terminating ? [max_date, (schedule.last.to_time rescue nil)].compact.min : max_date
+          max_date = terminating ? [max_date, (@schedule.last.to_time rescue nil)].compact.min : max_date
           
           max_count = Schedulable.config.max_build_count || 100
-          max_count = terminating && schedule.remaining_occurrences.any? ? [max_count, schedule.remaining_occurrences.count].min : max_count
+          max_count = terminating && @schedule.remaining_occurrences.any? ? [max_count, @schedule.remaining_occurrences.count].min : max_count
 
           # Get schedule occurrence dates
-          times = schedule.occurrences_between(min_date.to_time, max_date.to_time)
+          times = @schedule.occurrences_between(min_date.to_time, max_date.to_time)
           times = times.first(max_count) if max_count > 0
 
           # build occurrences
@@ -183,4 +179,3 @@ module Schedulable
   end
 
 end
- 
