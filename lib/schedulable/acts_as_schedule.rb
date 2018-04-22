@@ -12,7 +12,7 @@ module Schedulable
 
       after_initialize :update_schedule
       before_save :update_schedule
-      after_save :build_occurrences, if: ->(s) {s.changes.any?}
+      after_save :build_occurrences#, if: ->(s) {s.previous_changes.any?}
 
       validates_presence_of :rule
       validates_presence_of :time
@@ -44,11 +44,11 @@ module Schedulable
         return message
       end
 
-      def method_missing(meth, *args, &block)
-        if @schedule.present? && @schedule.respond_to?(meth)
-          @schedule.send(meth, *args, &block)
-        end
-      end
+ #    def method_missing(meth, *args, &block)
+ #      if @schedule.present? && @schedule.respond_to?(meth)
+ #        @schedule.send(meth, *args, &block)
+ #      end
+ #    end
 
       def self.param_names
         [:id, :date, :time, :rule, :until, :count, :interval, day: [], day_of_week: [monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []]]
@@ -144,12 +144,12 @@ module Schedulable
         end
 
         # build occurrences for events if we're persisting occurrences.
-        def build_occurrences
-          min_date = [schedule.date, Time.current].max
+        define_method :build_occurrences do
+          min_date = [self.date, Time.current].max
           
           occurrence_attribute = :date 
           
-          terminating = schedule.rule != 'singular' && (@schedule.until.present? || @schedule.count.to_i > 1)
+          terminating = self.rule != 'singular' && (self.until.present? || self.count.to_i > 1)
           
           max_period = Schedulable.config.max_build_period || 1.year
           max_date = min_date + max_period
@@ -164,9 +164,10 @@ module Schedulable
           times = times.first(max_count) if max_count > 0
 
           # build occurrences
-          occurrences = self.send(name)
+          occurrences_assoc = self.send(name)
           times.each do |time|
-            occurrences.find_by_date(time) || occurrences.create(date: time)
+            params = {date: time, schedulable: self.schedulable}
+            occurrences_assoc.find_by(params) || occurrences_assoc.create(params)
           end
 
           # Clean up unused remaining occurrences 
