@@ -14,7 +14,7 @@ module Schedulable
         attribute = :date
         
         has_many name, as: :schedulable, dependent: :destroy, class_name: 'Schedule'
-        accepts_nested_attributes_for name
+        accepts_nested_attributes_for name, allow_destroy: true
         
         if options[:occurrences]
           
