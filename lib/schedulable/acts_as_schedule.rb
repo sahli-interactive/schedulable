@@ -133,7 +133,7 @@ module Schedulable
     module ClassMethods
       
       def acts_as_schedule(name, options = {})
-        has_many name, {dependent: :destroy}.merge(options) do
+        has_many name, options do
           def remaining
             where("date >= ?", Time.current).order('date ASC')
           end
