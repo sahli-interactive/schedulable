@@ -7,7 +7,7 @@ module Schedulable
       serialize :day
       serialize :day_of_week, Hash
 
-      belongs_to :schedulable, polymorphic: true
+      belongs_to :schedulable, polymorphic: true, touch: true
       # 'has_many occurrences_association' defined in acts_as_schedulable
 
       after_initialize :update_schedule
@@ -163,11 +163,16 @@ module Schedulable
           times = @schedule.occurrences_between(min_date.to_time, max_date.to_time)
           times = times.first(max_count) if max_count > 0
 
-          # build occurrences
           occurrences_assoc = self.send(name)
+
+          # build occurrences
           times.each do |time|
-            params = {date: time, schedulable: self.schedulable}
-            occurrences_assoc.find_by(params) || occurrences_assoc.create(params)
+            # TODO assumes schedulable occurrences assoc name is same as schedule occurrences name.
+            if o = schedulable.send(name).find_by(date: time)
+              o.update(schedule: self) if o.schedule.nil?
+            else
+              occurrences_assoc.create(date: time, schedulable: self.schedulable)
+            end
           end
 
           # Clean up unused remaining occurrences 
