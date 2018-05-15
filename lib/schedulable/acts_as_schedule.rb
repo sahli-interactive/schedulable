@@ -12,7 +12,7 @@ module Schedulable
 
       after_initialize :update_schedule
       before_save :update_schedule
-      after_save :build_occurrences#, if: ->(s) {s.previous_changes.any?}
+      before_save :build_occurrences#, if: ->(s) {s.previous_changes.any?}
 
       validates_presence_of :rule
       validates_presence_of :time
@@ -143,12 +143,10 @@ module Schedulable
           end
         end
 
-        # build occurrences for events if we're persisting occurrences.
-        define_method :build_occurrences do
-          min_date = [self.date, Time.current].max
-          
-          occurrence_attribute = :date 
-          
+        # Return an array of occurrence dates given the defined schedule.
+        define_method :occurrence_dates do
+          min_date = [self.date, Time.current].max.beginning_of_day
+
           terminating = self.rule != 'singular' && (self.until.present? || self.count.to_i > 1)
           
           max_period = Schedulable.config.max_build_period || 1.year
@@ -163,21 +161,38 @@ module Schedulable
           times = @schedule.occurrences_between(min_date.to_time, max_date.to_time)
           times = times.first(max_count) if max_count > 0
 
-          occurrences_assoc = self.send(name)
+          times
+        end
 
-          # build occurrences
-          times.each do |time|
+        # build occurrences for events if we're persisting occurrences.
+        # return an array of occurrence objects. a mix of saved and unsaved.
+        define_method :build_occurrences do
+          occurrences = self.send(name)
+
+          # build occurrences on to this schedule.
+          # purposely don't save the occurrences to the db otherwise this will break
+          # the form+save paradigm where Schedule.new is called with nested parameters
+          # and we perform an Ajax request to get the hypothetical Uses without a save.
+          #
+          # try to build/match existing occurrence objects with the expected dates.
+          # - find in occurrences assoc if being created explcitly
+          # - find in pool of uses associated with the schedulable
+          # - generate if not found yet
+          new_occurrences = occurrence_dates.map do |time|
             # TODO assumes schedulable occurrences assoc name is same as schedule occurrences name.
-            if o = schedulable.send(name).find_by(date: time)
-              o.update(schedule: self) if o.schedule.nil?
+            if o = occurrences.find{|o| o.date == time}
+              o
+            elsif o = self.schedulable.send(name).where(date: time, schedule: nil).first
+              o.schedule = self
+              o
             else
-              occurrences_assoc.create(date: time, schedulable: self.schedulable)
+              occurrences.build(date: time, schedulable: self.schedulable)
             end
           end
 
-          # Clean up unused remaining occurrences 
-          self.send(name).remaining.where.not(date: times).destroy_all
+          self.send("#{name}=", new_occurrences)
         end
+
       end
 
     end
