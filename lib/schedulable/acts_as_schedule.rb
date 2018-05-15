@@ -167,27 +167,10 @@ module Schedulable
         # build occurrences for events if we're persisting occurrences.
         # return an array of occurrence objects. a mix of saved and unsaved.
         define_method :build_occurrences do
-          occurrences = self.send(name).to_a
-
-          # build occurrences on to this schedule.
-          # purposely don't save the occurrences to the db otherwise this will break
-          # the form+save paradigm where Schedule.new is called with nested parameters
-          # and we perform an Ajax request to get the hypothetical Uses without a save.
-          #
-          # try to build/match existing occurrence objects with the expected dates.
-          # - find in occurrences assoc if being created explcitly
-          # - find in pool of uses associated with the schedulable
-          # - generate if not found yet
           new_occurrences = occurrence_dates.map do |time|
-            # TODO assumes schedulable occurrences assoc name is same as schedule occurrences name.
-            if o = occurrences.find{|o| o.date == time}
-              self.send(name).build(date: o.date, schedulable: self.schedulable)
-            elsif o = self.schedulable.send(name).where(date: time, schedule: nil).first
-              o.schedule = self
-              o
-            else
-              self.send(name).build(date: time, schedulable: self.schedulable)
-            end
+            o = self.schedulable.send(name).find_or_initialize_by(date: time)
+            o.schedule = self
+            o
           end
 
           self.send("#{name}=", new_occurrences)
