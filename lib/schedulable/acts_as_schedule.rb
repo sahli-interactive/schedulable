@@ -167,7 +167,7 @@ module Schedulable
         # build occurrences for events if we're persisting occurrences.
         # return an array of occurrence objects. a mix of saved and unsaved.
         define_method :build_occurrences do
-          occurrences = self.send(name)
+          occurrences = self.send(name).to_a
 
           # build occurrences on to this schedule.
           # purposely don't save the occurrences to the db otherwise this will break
@@ -181,12 +181,12 @@ module Schedulable
           new_occurrences = occurrence_dates.map do |time|
             # TODO assumes schedulable occurrences assoc name is same as schedule occurrences name.
             if o = occurrences.find{|o| o.date == time}
-              o
+              self.send(name).build(date: o.date, schedulable: self.schedulable)
             elsif o = self.schedulable.send(name).where(date: time, schedule: nil).first
               o.schedule = self
               o
             else
-              occurrences.build(date: time, schedulable: self.schedulable)
+              self.send(name).build(date: time, schedulable: self.schedulable)
             end
           end
 
