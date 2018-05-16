@@ -12,7 +12,7 @@ module Schedulable
 
       after_initialize :update_schedule
       before_save :update_schedule
-      before_save :build_occurrences#, if: ->(s) {s.previous_changes.any?}
+      after_save :build_occurrences#, if: ->(s) {s.previous_changes.any?}
 
       validates_presence_of :rule
       validates_presence_of :time
@@ -167,10 +167,19 @@ module Schedulable
         # build occurrences for events if we're persisting occurrences.
         # return an array of occurrence objects. a mix of saved and unsaved.
         define_method :build_occurrences do
+          old_occurrences = self.schedulable.send(name).to_a
+
           new_occurrences = occurrence_dates.map do |time|
-            o = self.schedulable.send(name).find_or_initialize_by(date: time)
-            o.schedule = self
-            o
+            # Search for a matching occurrence by date and scoped by Schedulable that is
+            # unattached or already attached to our Schedule.
+            #
+            # Operate on in memory collection rather than on the database in case
+            # any Uses have been added manually.
+            o = old_occurrences.find{|o| o.date == time && [nil, self].include?(o.schedule)}
+            # Ensure schedule is set to ourself.
+            o.schedule ||= self if o
+            # Build the occurrence if we couldn't find any previously.
+            o ||= self.schedulable.send(name).build(date: time, schedule: self)
           end
 
           self.send("#{name}=", new_occurrences)
