@@ -142,6 +142,14 @@ module Schedulable
             where("date < ?", Time.current).order('date DESC')
           end
         end
+        accepts_nested_attributes_for name
+        define_method "#{name}_attributes=" do |attribute_sets|
+          super(
+            attribute_sets.map do |i,attributes|
+              attributes.merge(schedulable: self.schedulable)
+            end
+          )
+        end
 
         # Return an array of occurrence dates given the defined schedule.
         define_method :occurrence_dates do
@@ -167,19 +175,17 @@ module Schedulable
         # build occurrences for events if we're persisting occurrences.
         # return an array of occurrence objects. a mix of saved and unsaved.
         define_method :build_occurrences do
-          old_occurrences = self.schedulable.send(name).to_a
-
           new_occurrences = occurrence_dates.map do |time|
             # Search for a matching occurrence by date and scoped by Schedulable that is
             # unattached or already attached to our Schedule.
             #
             # Operate on in memory collection rather than on the database in case
             # any Uses have been added manually.
-            o = old_occurrences.find{|o| o.date == time && [nil, self].include?(o.schedule)}
+            o = self.schedulable.send(name).where(date: time, schedule: [nil, self]).first
             # Ensure schedule is set to ourself.
             o.schedule ||= self if o
             # Build the occurrence if we couldn't find any previously.
-            o ||= self.schedulable.send(name).build(date: time, schedule: self)
+            o ||= self.send(name).build(date: time, schedulable: self.schedulable)
           end
 
           self.send("#{name}=", new_occurrences)

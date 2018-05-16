@@ -15,6 +15,13 @@ module Schedulable
         
         has_many name, as: :schedulable, dependent: :destroy, class_name: 'Schedule'
         accepts_nested_attributes_for name, allow_destroy: true
+        define_method "#{name}_attributes=" do |attribute_sets|
+          super(
+            attribute_sets.map do |i,attributes|
+              attributes.merge(schedulable: self)
+            end
+          )
+        end
         
         if options[:occurrences]
           
