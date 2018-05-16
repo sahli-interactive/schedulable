@@ -181,7 +181,9 @@ module Schedulable
             #
             # Operate on in memory collection rather than on the database in case
             # any Uses have been added manually.
-            o = self.schedulable.send(name).where(date: time, schedule: [nil, self]).first
+            o = nil
+            o ||= self.schedulable.send(name).where(date: time, schedule: [nil, self]).first if self.schedulable
+            o ||= self.send(name).where(date: time).first
             # Ensure schedule is set to ourself.
             o.schedule ||= self if o
             # Build the occurrence if we couldn't find any previously.
