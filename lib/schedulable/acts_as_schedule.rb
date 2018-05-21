@@ -12,7 +12,8 @@ module Schedulable
 
       after_initialize :update_schedule
       before_save :update_schedule
-      after_save :build_occurrences#, if: ->(s) {s.previous_changes.any?}
+      before_save :build_occurrences#, if: ->(s) {s.previous_changes.any?}
+      #after_save :save_occurrences
 
       validates_presence_of :rule
       validates_presence_of :time
@@ -127,7 +128,6 @@ module Schedulable
         end
       end
 
-
     end
    
     module ClassMethods
@@ -182,7 +182,11 @@ module Schedulable
             # Operate on in memory collection rather than on the database in case
             # any Uses have been added manually.
             o = nil
+            # ... local explicitly set in memory instances
+            o ||= self.send(name).to_a.find{|oc| oc.date == time}
+            # ... any attached to the associated schedulable
             o ||= self.schedulable.send(name).where(date: time, schedule: [nil, self]).first if self.schedulable
+            # ... any attached to ourselves. namely used when schedulable is nil.
             o ||= self.send(name).where(date: time).first
             # Ensure schedule is set to ourself.
             o.schedule ||= self if o
@@ -190,6 +194,7 @@ module Schedulable
             o ||= self.send(name).build(date: time, schedulable: self.schedulable)
           end
 
+          # Set new occurrences.
           self.send("#{name}=", new_occurrences)
         end
 
