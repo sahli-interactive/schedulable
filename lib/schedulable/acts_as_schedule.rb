@@ -141,6 +141,11 @@ module Schedulable
           def previous
             where("date < ?", Time.current).order('date DESC')
           end
+
+          # Occurrences that take place completely between two dates.
+          def within(d1, d2)
+            where("start_at >= ? AND end_at <= ?", d1, d2)
+          end
         end
         accepts_nested_attributes_for name
         define_method "#{name}_attributes=" do |attribute_sets|
@@ -153,17 +158,18 @@ module Schedulable
 
         # Return an array of occurrence dates given the defined schedule.
         define_method :occurrence_dates do
-          min_date = [self.date, Time.current].max.beginning_of_day
+          #min_date = [self.date, Time.current].max.beginning_of_day
+          min_date = self.date.beginning_of_day
 
           terminating = self.rule != 'singular' && (self.until.present? || self.count.to_i > 1)
           
           max_period = Schedulable.config.max_build_period || 1.year
           max_date = min_date + max_period
           
-          max_date = terminating ? [max_date, (@schedule.last.to_time rescue nil)].compact.min : max_date
+          #max_date = terminating ? [max_date, (@schedule.last.to_time rescue nil)].compact.min : max_date
           
           max_count = Schedulable.config.max_build_count || 100
-          max_count = terminating && @schedule.remaining_occurrences.any? ? [max_count, @schedule.remaining_occurrences.count].min : max_count
+          #max_count = terminating && @schedule.remaining_occurrences.any? ? [max_count, @schedule.remaining_occurrences.count].min : max_count
 
           # Get schedule occurrence dates
           times = @schedule.occurrences_between(min_date.to_time, max_date.to_time)

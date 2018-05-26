@@ -11,9 +11,20 @@ module Schedulable
       def acts_as_schedulable(name, options = {})
         
         name ||= :schedules
-        attribute = :date
+        #attribute = :date
         
-        has_many name, as: :schedulable, dependent: :destroy, class_name: 'Schedule'
+        has_many name, as: :schedulable, dependent: :destroy, class_name: 'Schedule' do
+          # Schedules completely contained by a date range.
+          def within(d1, d2)
+            where("date >= ? AND until <= ?", d1, d2)
+          end
+
+          # Schedules partly contained by two dates.
+          def overlap(d1, d2)
+            r = (term.start_at...term.end_at)
+            where("(date BETWEEN ? OR until BETWEEN ?", r, r)
+          end
+        end
         accepts_nested_attributes_for name, allow_destroy: true
         define_method "#{name}_attributes=" do |attribute_sets|
           super(
