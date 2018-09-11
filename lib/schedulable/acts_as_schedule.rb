@@ -7,7 +7,7 @@ module Schedulable
       serialize :day
       serialize :day_of_week, Hash
 
-      belongs_to :schedulable, polymorphic: true, touch: true
+      belongs_to :schedulable, polymorphic: true, touch: true, optional: true
       # 'has_many occurrences_association' defined in acts_as_schedulable
 
       after_initialize :update_schedule
@@ -57,9 +57,9 @@ module Schedulable
 
       def update_schedule
 
-        self.rule||= "singular"
-        self.interval||= 1
-        self.count||= 0
+        self.rule ||= "singular"
+        self.interval ||= 1
+        self.count ||= 0
 
         time = (self.date || Date.current).to_time
         self_tz = self.time.in_time_zone if self.time
@@ -70,7 +70,9 @@ module Schedulable
         time_string = time.strftime("%d-%m-%Y %I:%M %p")
         time = Time.zone.parse(time_string)
 
-        @schedule = IceCube::Schedule.new(time)
+        args = {}
+        args[:duration] = self.time_end - self.time if self.time_end
+        @schedule = IceCube::Schedule.new(time, args)
 
         if self.rule && self.rule != 'singular'
 
@@ -134,12 +136,20 @@ module Schedulable
       
       def acts_as_schedule(name, options = {})
         has_many name, options do
-          def remaining
-            where("date >= ?", Time.current).order('date ASC')
+          def unstarted
+            where("date > ?", Time.current).order('date ASC')
           end
 
-          def previous
-            where("date < ?", Time.current).order('date DESC')
+          def started
+            where("date =< ?", Time.current).order('date DESC')
+          end
+
+          def finished
+            where("date_end <= ?", Time.current).order('date ASC')
+          end
+
+          def unfinished
+            where("date_end > ?", Time.current).order('date ASC')
           end
 
           # Occurrences that take place completely between two dates.
@@ -194,12 +204,14 @@ module Schedulable
             o ||= self.schedulable.send(name).where(date: time, schedule: [nil, self]).first if self.schedulable
             # ... any attached to ourselves. namely used when schedulable is nil.
             o ||= self.send(name).where(date: time).first
-            # Ensure schedule is set to ourself.
+            # Ensure schedule is set to ourself. It may be nil if orphaned.
             o.schedule ||= self if o
             # Build the occurrence if we couldn't find any previously.
-            o ||= self.send(name).build(date: time, schedulable: self.schedulable)
+            o ||= self.send(name).build(date: time, date_end: time.end_time, schedulable: self.schedulable)
+            # Ensure date_end is up to date.
+            o.date_end = time.end_time
+            o
           end
-
           # Set new occurrences.
           self.send("#{name}=", new_occurrences)
         end

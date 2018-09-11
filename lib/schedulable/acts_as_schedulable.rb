@@ -20,9 +20,10 @@ module Schedulable
           end
 
           # Schedules partly contained by two dates.
-          def overlap(d1, d2)
-            r = (term.start_at...term.end_at)
-            where("(date BETWEEN ? OR until BETWEEN ?", r, r)
+          # Pass two dates or a Range object.
+          def overlap(*dates)
+            dates = Range.new(*dates) if date.is_a?(Array)
+            where(date: dates).or(where(until: dates))
           end
         end
         accepts_nested_attributes_for name, allow_destroy: true
@@ -50,13 +51,13 @@ module Schedulable
           options[:occurrences][:autosave]||= true
           
           has_many occurrences_association, options[:occurrences] do
-            def remaining
-              where("date >= ?", Time.current).order('date ASC')
-            end
+#           def remaining
+#             where("date >= ?", Time.current).order('date ASC')
+#           end
 
-            def previous
-              where("date < ?", Time.current).order('date DESC')
-            end
+#           def previous
+#             where("date < ?", Time.current).order('date DESC')
+#           end
           end
         end
       end
