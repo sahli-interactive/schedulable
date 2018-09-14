@@ -4,7 +4,6 @@ module Schedulable
     extend ActiveSupport::Concern
    
     included do
-      serialize :day
       serialize :day_of_week, Hash
 
       belongs_to :schedulable, polymorphic: true, touch: true, optional: true
