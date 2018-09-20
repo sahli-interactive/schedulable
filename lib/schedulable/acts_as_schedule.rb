@@ -77,36 +77,62 @@ module Schedulable
 
           self.interval = self.interval.present? ? self.interval.to_i : 1
 
-          rule = IceCube::Rule.send("#{self.rule}", self.interval)
+          ic_rule = IceCube::Rule.send("#{self.rule}", self.interval)
 
           if self.until
-            rule.until(self.until)
+            ic_rule.until(self.until)
           end
 
           if self.count && self.count.to_i > 0
-            rule.count(self.count.to_i)
+            ic_rule.count(self.count.to_i)
           end
 
           if self.day
             days = self.day.reject(&:empty?)
             if self.rule == 'weekly'
               days.each do |day|
-                rule.day(day.to_sym)
+                ic_rule.day(day.to_sym)
               end
             elsif self.rule == 'monthly'
-              days = {}
-              day_of_week.each do |weekday, value|
-                days[weekday.to_sym] = value.reject(&:empty?).map { |x| x.to_i }
-              end
-              rule.day_of_week(days)
+              ic_rule.day_of_week(self.day_of_week)
             end
           end
-          @schedule.add_recurrence_rule(rule)
+          @schedule.add_recurrence_rule(ic_rule)
         end
 
       end
 
+      def date=(d)
+        super(d)
+        infer_day
+      end
+
+      def rule=(r)
+        super(r)
+        infer_day
+      end
+
+      def day_of_week=(d)
+        super(d)
+        infer_day
+      end
+
+
       private
+
+
+      def infer_day
+        case self.rule
+        when 'singular'
+          if self.date
+            self.day |= [self.date.strftime('%A').downcase]
+          else
+            self.day = []
+          end
+        when 'monthly'
+          self.day = self.day_of_week.keys
+        end
+      end
 
       def validate_day
         day.reject! { |c| c.empty? }
