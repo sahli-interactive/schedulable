@@ -23,7 +23,7 @@ module Schedulable
           # Pass two dates or a Range object.
           def overlap(d1_or_range, d2=nil)
             dates = d1_or_range.is_a?(Range) ? d1_or_range : (d1_or_range..d2)
-            where(date: dates).or(where(until: dates))
+            where("until >= ? AND ? >= date", dates.first, dates.last)
           end
         end
         accepts_nested_attributes_for name, allow_destroy: true
