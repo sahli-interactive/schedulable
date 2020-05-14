@@ -21,7 +21,7 @@ module Schedulable
 
           # Schedules partly contained by two dates.
           # Pass two dates or a Range object.
-          def overlap(d1_or_range, d2=nil)
+          def overlap(d1_or_range, d2=d1_or_range)
             dates = d1_or_range.is_a?(Range) ? d1_or_range : (d1_or_range..d2)
             where("until >= ? AND ? >= date", dates.first, dates.last)
           end
